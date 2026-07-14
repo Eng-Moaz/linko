@@ -12,6 +12,8 @@ import (
 	"boot.dev/linko/internal/store"
 )
 
+var Logger = log.New(os.Stderr, "DEBUG: ", log.LstdFlags)
+
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
@@ -41,11 +43,11 @@ func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir s
 	defer cancel()
 
 	if err := s.shutdown(shutdownCtx); err != nil {
-		log.Printf("failed to shutdown server: %v\n", err)
+		Logger.Printf("failed to shutdown server: %v\n", err)
 		return 1
 	}
 	if serverErr != nil {
-		log.Printf("server error: %v\n", serverErr)
+		Logger.Printf("server error: %v\n", serverErr)
 		return 1
 	}
 	return 0
