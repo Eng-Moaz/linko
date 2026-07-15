@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -26,12 +27,17 @@ func main() {
 }
 
 func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir string) int {
-	logger, file, err := initializeLogger()
+	logger, cls, err := initializeLogger()
 	if err != nil{
 		log.Printf("Error in initializing the logger: %v", err)
 		return 1
 	}
-	defer file.Close()
+
+	defer func(){
+		if err := cls() ; err != nil{
+			fmt.Fprintf(os.Stderr, "Error in closing the logger function: %v", err)
+		}
+	}()
 
 	st, err := store.New(dataDir, logger)
 	if err != nil {
