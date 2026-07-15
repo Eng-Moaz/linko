@@ -26,21 +26,19 @@ func main() {
 }
 
 func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir string) int {
-	file, err := os.OpenFile("linko.access.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		log.Fatalf("Failed to open log file: %v", err)
+	logger, file, err := initializeLogger()
+	if err != nil{
+		log.Printf("Error in initializing the logger: %v", err)
+		return 1
 	}
 	defer file.Close()
 
-	accessLogger := log.New(file, "INFO: ", log.LstdFlags)
-	stdLogger := log.New(os.Stderr, "DEBUG: ", log.LstdFlags)
-
-	st, err := store.New(dataDir, stdLogger)
+	st, err := store.New(dataDir, logger)
 	if err != nil {
 		log.Printf("failed to create store: %v\n", err)
 		return 1
 	}
-	s := newServer(*st, httpPort, cancel, accessLogger)
+	s := newServer(*st, httpPort, cancel, logger)
 	var serverErr error
 	go func() {
 		serverErr = s.start()
