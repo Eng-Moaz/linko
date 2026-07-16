@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -27,19 +26,27 @@ func initializeLogger() (*slog.Logger, closeFunc, error){
 		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
 		return logger, nil, nil
 	}else{
-		file, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+		debugHandler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		})
+		file, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return nil, nil, fmt.Errorf("Failed to open log file: %v", err)
 		}
 		bufferedWriter := bufio.NewWriterSize(file, 8192)
-		multiWriter := io.MultiWriter(bufferedWriter, os.Stderr)
-		logger = slog.New(slog.NewTextHandler(multiWriter, nil))
+		infoHandler := slog.NewTextHandler(bufferedWriter, &slog.HandlerOptions{
+			Level: slog.LevelInfo,
+		})
+		logger = slog.New(slog.NewMultiHandler(
+			debugHandler,
+			infoHandler,
+		))
 		cls := func()error{
-			file.Close()
 			err := bufferedWriter.Flush()
 			if err != nil{
 				return err
 			}
+			file.Close()
 			return nil
 		}
 		return logger, cls, nil
