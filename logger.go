@@ -6,9 +6,16 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+
+	"github.com/pkg/errors"
 )
 
 type closeFunc func()error
+
+type stackTracer interface {
+	error
+	StackTrace() errors.StackTrace
+}
 
 func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler{
 	return func(next http.Handler) http.Handler{
@@ -24,13 +31,27 @@ func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler{
 }
 
 func replaceAttr(groups []string, a slog.Attr) slog.Attr {
-	if a.Key == "error" {
-		err, ok := a.Value.Any().(error)
-		if !ok {
-			return a
-		}
-		return slog.String("error", fmt.Sprintf("%+v", err))
+	v := a.Value.Any()
+	if a.Key != "error" {
+		return a
 	}
+
+	err, ok := v.(error)
+	if !ok {
+		return a
+	}
+
+	var stackErr stackTracer
+	if errors.As(err, &stackErr) {
+		return slog.GroupAttrs("error", slog.Attr{
+			Key:   "message",
+			Value: slog.StringValue(stackErr.Error()),
+		}, slog.Attr{
+			Key:   "stack_trace",
+			Value: slog.StringValue(fmt.Sprintf("%+v", stackErr.StackTrace())),
+		})
+	}
+
 	return a
 }
 
