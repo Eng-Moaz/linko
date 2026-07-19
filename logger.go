@@ -2,20 +2,26 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 
 	"boot.dev/linko/internal/linkoerr"
-	"github.com/pkg/errors"
+	pkgerrors "github.com/pkg/errors"
 )
 
 type closeFunc func() error
 
 type stackTracer interface {
 	error
-	StackTrace() errors.StackTrace
+	StackTrace() pkgerrors.StackTrace
+}
+
+type multiError interface {
+	error
+	Unwrap() []error
 }
 
 func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
@@ -31,6 +37,26 @@ func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 	}
 }
 
+func errorAttrs(err error) []slog.Attr {
+	group := []slog.Attr{}
+	group = append(group, slog.Attr{
+		Key:   "message",
+		Value: slog.StringValue(err.Error()),
+	})
+
+	attrs := linkoerr.Attrs(err)
+	group = append(group, attrs...)
+
+	if stackErr, ok := errors.AsType[stackTracer](err); ok {
+		group = append(group, slog.Attr{
+			Key:   "stack_trace",
+			Value: slog.StringValue(fmt.Sprintf("%+v", stackErr.StackTrace())),
+		})
+	}
+
+	return group
+}
+
 func replaceAttr(groups []string, a slog.Attr) slog.Attr {
 	v := a.Value.Any()
 	if a.Key != "error" {
@@ -41,24 +67,18 @@ func replaceAttr(groups []string, a slog.Attr) slog.Attr {
 	if !ok {
 		return a
 	}
-	group := []slog.Attr{}
-	group = append(group, slog.Attr{
-		Key:   "message",
-		Value: slog.StringValue(err.Error()),
-	})
-
-	attrs := linkoerr.Attrs(err)
-	group = append(group, attrs...)
-
-	var stackErr stackTracer
-	if errors.As(err, &stackErr) {
-		group = append(group, slog.Attr{
-			Key:   "stack_trace",
-			Value: slog.StringValue(fmt.Sprintf("%+v", stackErr.StackTrace())),
-		})
+	if err, ok := errors.AsType[multiError](err); ok {
+		groups := []slog.Attr{}
+		errs := err.Unwrap()
+		for i, err := range errs {
+			groupErr := slog.GroupAttrs(fmt.Sprint("error_", i+1), errorAttrs(err)...)
+			groups = append(groups, groupErr)
+		}
+		return slog.GroupAttrs("errors", groups...)
+	} else {
+		group := errorAttrs(err)
+		return slog.GroupAttrs("error", group...)
 	}
-
-	return slog.GroupAttrs("error", group...)
 }
 
 func initializeLogger() (*slog.Logger, closeFunc, error) {
