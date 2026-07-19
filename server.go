@@ -16,7 +16,7 @@ type server struct {
 	httpServer *http.Server
 	store      store.Store
 	cancel     context.CancelFunc
-	logger	   *slog.Logger
+	logger     *slog.Logger
 }
 
 func newServer(store store.Store, port int, cancel context.CancelFunc, logger *slog.Logger) *server {

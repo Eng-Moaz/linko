@@ -32,10 +32,10 @@ func Test_requestLogger(t *testing.T) {
 	const expectedLogString = `time=2023-10-01T12:34:57.000Z level=INFO msg="Served request" method=GET path=/api/stats client_ip=192.0.2.1:1234` + "\n"
 	const expectedStatusCode = http.StatusOK
 
-	if logBuffer.String() != expectedLogString{
+	if logBuffer.String() != expectedLogString {
 		t.Errorf("log string isnt as expected, recieved: %v expected: %v", logBuffer.String(), expectedLogString)
 	}
-	if rr.Code != expectedStatusCode{
+	if rr.Code != expectedStatusCode {
 		t.Errorf("status code isnt as expected, recieved: %v expected: %v", rr.Code, expectedStatusCode)
 	}
 }

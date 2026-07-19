@@ -7,19 +7,20 @@ import (
 	"net/http"
 	"os"
 
+	"boot.dev/linko/internal/linkoerr"
 	"github.com/pkg/errors"
 )
 
-type closeFunc func()error
+type closeFunc func() error
 
 type stackTracer interface {
 	error
 	StackTrace() errors.StackTrace
 }
 
-func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler{
-	return func(next http.Handler) http.Handler{
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){
+func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			next.ServeHTTP(w, r)
 			logger.Info("Served request",
 				slog.String("method", r.Method),
@@ -40,30 +41,35 @@ func replaceAttr(groups []string, a slog.Attr) slog.Attr {
 	if !ok {
 		return a
 	}
+	group := []slog.Attr{}
+	group = append(group, slog.Attr{
+		Key:   "message",
+		Value: slog.StringValue(err.Error()),
+	})
+
+	attrs := linkoerr.Attrs(err)
+	group = append(group, attrs...)
 
 	var stackErr stackTracer
 	if errors.As(err, &stackErr) {
-		return slog.GroupAttrs("error", slog.Attr{
-			Key:   "message",
-			Value: slog.StringValue(stackErr.Error()),
-		}, slog.Attr{
+		group = append(group, slog.Attr{
 			Key:   "stack_trace",
 			Value: slog.StringValue(fmt.Sprintf("%+v", stackErr.StackTrace())),
 		})
 	}
 
-	return a
+	return slog.GroupAttrs("error", group...)
 }
 
-func initializeLogger() (*slog.Logger, closeFunc, error){
-	logFile := os.Getenv("LINKO_LOG_FILE")	
+func initializeLogger() (*slog.Logger, closeFunc, error) {
+	logFile := os.Getenv("LINKO_LOG_FILE")
 	var logger *slog.Logger
-	if logFile == ""{
+	if logFile == "" {
 		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
 		return logger, nil, nil
-	}else{
+	} else {
 		debugHandler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-			Level: slog.LevelDebug,
+			Level:       slog.LevelDebug,
 			ReplaceAttr: replaceAttr,
 		})
 		file, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -72,16 +78,16 @@ func initializeLogger() (*slog.Logger, closeFunc, error){
 		}
 		bufferedWriter := bufio.NewWriterSize(file, 8192)
 		infoHandler := slog.NewJSONHandler(bufferedWriter, &slog.HandlerOptions{
-			Level: slog.LevelInfo,
+			Level:       slog.LevelInfo,
 			ReplaceAttr: replaceAttr,
 		})
 		logger = slog.New(slog.NewMultiHandler(
 			debugHandler,
 			infoHandler,
 		))
-		cls := func()error{
+		cls := func() error {
 			err := bufferedWriter.Flush()
-			if err != nil{
+			if err != nil {
 				return err
 			}
 			file.Close()

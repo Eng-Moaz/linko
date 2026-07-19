@@ -12,7 +12,6 @@ import (
 	"boot.dev/linko/internal/store"
 )
 
-
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
@@ -27,13 +26,13 @@ func main() {
 
 func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir string) int {
 	logger, cls, err := initializeLogger()
-	if err != nil{
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error in initializing the logger: %v", err)
 		return 1
 	}
 
-	defer func(){
-		if err := cls() ; err != nil{
+	defer func() {
+		if err := cls(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error in closing the logger function: %v", err)
 		}
 	}()
