@@ -4,11 +4,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"boot.dev/linko/internal/build"
 	"boot.dev/linko/internal/store"
 )
 
@@ -30,7 +32,10 @@ func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir s
 		fmt.Fprintf(os.Stderr, "Error in initializing the logger: %v", err)
 		return 1
 	}
-
+	logger = logger.With(
+		slog.String("git_sha", build.GitSHA),
+		slog.String("build_time", build.BuildTime),
+	)
 	defer func() {
 		if err := cls(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error in closing the logger function: %v", err)

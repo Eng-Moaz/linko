@@ -38,6 +38,10 @@ func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 }
 
 func errorAttrs(err error) []slog.Attr {
+	fmt.Printf("errorAttrs called with err=%#v, type=%T\n", err, err)
+	if err == nil {
+        	return []slog.Attr{}
+    	    }
 	group := []slog.Attr{}
 	group = append(group, slog.Attr{
 		Key:   "message",
@@ -67,6 +71,10 @@ func replaceAttr(groups []string, a slog.Attr) slog.Attr {
 	if !ok {
 		return a
 	}
+	if err == nil{
+		return a
+	}
+
 	if err, ok := errors.AsType[multiError](err); ok {
 		groups := []slog.Attr{}
 		errs := err.Unwrap()
