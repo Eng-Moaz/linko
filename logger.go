@@ -30,8 +30,15 @@ const logContextKey contextKey = "log_context"
 
 type LogContext struct {
 	Username string
+	Error error
 }
 
+func httpError(ctx context.Context, w http.ResponseWriter, status int, err error) {
+	if logCtx, ok := ctx.Value(logContextKey).(*LogContext); ok {
+		logCtx.Error = err
+	}
+	http.Error(w, err.Error(), status)
+}
 
 func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -62,6 +69,9 @@ func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 				if logCtx.Username != ""{
 					logAttrs = append(logAttrs, slog.String("user", logCtx.Username))
 				}
+				if logCtx.Error != nil{
+					logAttrs = append(logAttrs, slog.Any("error", logCtx.Error))
+				}
 			}
 
 			logger.Info("Served request", logAttrs...)
@@ -70,23 +80,25 @@ func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 }
 
 func errorAttrs(err error) []slog.Attr {
-	fmt.Printf("errorAttrs called with err=%#v, type=%T\n", err, err)
 	if err == nil {
-        	return []slog.Attr{}
-    	    }
-	group := []slog.Attr{}
-	group = append(group, slog.Attr{
-		Key:   "message",
-		Value: slog.StringValue(err.Error()),
-	})
+		return []slog.Attr{}
+	}
+
+	group := []slog.Attr{
+		{
+			Key:   "message",
+			Value: slog.StringValue(err.Error()),
+		},
+	}
 
 	attrs := linkoerr.Attrs(err)
 	group = append(group, attrs...)
 
-	if stackErr, ok := errors.AsType[stackTracer](err); ok {
+	var st stackTracer
+	if errors.As(err, &st) {
 		group = append(group, slog.Attr{
 			Key:   "stack_trace",
-			Value: slog.StringValue(fmt.Sprintf("%+v", stackErr.StackTrace())),
+			Value: slog.StringValue(fmt.Sprintf("%+v", st.StackTrace())),
 		})
 	}
 
@@ -94,31 +106,25 @@ func errorAttrs(err error) []slog.Attr {
 }
 
 func replaceAttr(groups []string, a slog.Attr) slog.Attr {
-	v := a.Value.Any()
 	if a.Key != "error" {
 		return a
 	}
 
-	err, ok := v.(error)
-	if !ok {
-		return a
-	}
-	if err == nil{
+	errVal, ok := a.Value.Any().(error)
+	if !ok || errVal == nil {
 		return a
 	}
 
-	if err, ok := errors.AsType[multiError](err); ok {
-		groups := []slog.Attr{}
-		errs := err.Unwrap()
-		for i, err := range errs {
-			groupErr := slog.GroupAttrs(fmt.Sprint("error_", i+1), errorAttrs(err)...)
-			groups = append(groups, groupErr)
+	var mErr multiError
+	if errors.As(errVal, &mErr) {
+		var errGroups []slog.Attr
+		for i, err := range mErr.Unwrap() {
+			errGroups = append(errGroups, slog.GroupAttrs(fmt.Sprintf("error_%d", i+1), errorAttrs(err)...))
 		}
-		return slog.GroupAttrs("errors", groups...)
-	} else {
-		group := errorAttrs(err)
-		return slog.GroupAttrs("error", group...)
+		return slog.GroupAttrs("errors", errGroups...)
 	}
+
+	return slog.GroupAttrs("error", errorAttrs(errVal)...)
 }
 
 func initializeLogger() (*slog.Logger, closeFunc, error) {
