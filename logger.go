@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"boot.dev/linko/internal/linkoerr"
 	pkgerrors "github.com/pkg/errors"
@@ -27,11 +28,22 @@ type multiError interface {
 func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r)
+			timeNow := time.Now()
+
+			spyWriter := &spyResponseWriter{ResponseWriter: w}
+			spyReader := &spyReadCloser{ReadCloser: r.Body}
+			r.Body = spyReader
+
+			next.ServeHTTP(spyWriter, r)
 			logger.Info("Served request",
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
 				slog.String("client_ip", r.RemoteAddr),
+				slog.Duration("duration", time.Since(timeNow)),
+				slog.Int("request_body_bytes", spyReader.bytesRead),
+				slog.Int("response_status", spyWriter.statusCode),
+				slog.Int("response_body_bytes", spyWriter.bytesWritten),
+
 			)
 		})
 	}
