@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bufio"
+	// "bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -12,6 +12,7 @@ import (
 	"boot.dev/linko/internal/linkoerr"
 	"github.com/lmittmann/tint"
 	"github.com/mattn/go-isatty"
+	"github.com/natefinch/lumberjack"
 	pkgerrors "github.com/pkg/errors"
 )
 
@@ -103,12 +104,22 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 			Level:       slog.LevelDebug,
 			ReplaceAttr: replaceAttr,
 		})
-		file, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			return nil, nil, fmt.Errorf("Failed to open log file: %v", err)
+		// file, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		// if err != nil {
+		// 	return nil, nil, fmt.Errorf("Failed to open log file: %v", err)
+		// }
+		// bufferedWriter := bufio.NewWriterSize(file, 8192)
+
+		rotateLogger := &lumberjack.Logger{
+			Filename: logFile,
+			MaxSize: 1,
+			MaxAge: 28,
+			MaxBackups: 10,
+			LocalTime: false,
+			Compress: true,
 		}
-		bufferedWriter := bufio.NewWriterSize(file, 8192)
-		infoHandler := slog.NewJSONHandler(bufferedWriter, &slog.HandlerOptions{
+
+		infoHandler := slog.NewJSONHandler(rotateLogger, &slog.HandlerOptions{
 			Level:       slog.LevelInfo,
 			ReplaceAttr: replaceAttr,
 		})
@@ -117,11 +128,12 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 			infoHandler,
 		))
 		cls := func() error {
-			err := bufferedWriter.Flush()
-			if err != nil {
-				return err
-			}
-			file.Close()
+			// err := bufferedWriter.Flush()
+			// if err != nil {
+			// 	return err
+			// }
+			// file.Close()
+			rotateLogger.Close()
 			return nil
 		}
 		return logger, cls, nil
