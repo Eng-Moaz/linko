@@ -10,6 +10,8 @@ import (
 	"os"
 
 	"boot.dev/linko/internal/linkoerr"
+	"github.com/lmittmann/tint"
+	"github.com/mattn/go-isatty"
 	pkgerrors "github.com/pkg/errors"
 )
 
@@ -91,10 +93,13 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 	logFile := os.Getenv("LINKO_LOG_FILE")
 	var logger *slog.Logger
 	if logFile == "" {
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		logger = slog.New(tint.NewTextHandler(os.Stderr, &tint.Options{
+			NoColor: !(isatty.IsCygwinTerminal(os.Stderr.Fd()) || isatty.IsTerminal(os.Stderr.Fd())),
+		}))
 		return logger, nil, nil
 	} else {
-		debugHandler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		debugHandler := tint.NewTextHandler(os.Stderr, &tint.Options{
+			NoColor: !(isatty.IsCygwinTerminal(os.Stderr.Fd()) || isatty.IsTerminal(os.Stderr.Fd())),
 			Level:       slog.LevelDebug,
 			ReplaceAttr: replaceAttr,
 		})
