@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"slices"
 
@@ -78,7 +79,21 @@ func errorAttrs(err error) []slog.Attr {
 }
 
 func replaceAttr(groups []string, a slog.Attr) slog.Attr {
-	if a.Key != "error" {
+	var sensitiveKeys = []string{"password", "key", "apikey", "secret", "pin", "creditcardno", "user"}
+
+	if slices.Contains(sensitiveKeys, a.Key){
+		return slog.String(a.Key, "[REDACTED]")
+	}
+	if a.Value.Kind() == slog.KindString {
+		if URL, err := url.Parse(a.Value.String()) ; err == nil{
+			if _, ok := URL.User.Password() ; ok {
+				URL.User = url.UserPassword(URL.User.Username(), "[REDACTED]")
+				return slog.String(a.Key, URL.String())
+			}
+		}
+	}
+
+	if a.Key != "error"{
 		return a
 	}
 
@@ -88,10 +103,12 @@ func replaceAttr(groups []string, a slog.Attr) slog.Attr {
 	}
 
 	var mErr multiError
+
 	if errors.As(errVal, &mErr) {
 		var errGroups []slog.Attr
 		for i, err := range mErr.Unwrap() {
-			errGroups = append(errGroups, slog.GroupAttrs(fmt.Sprintf("error_%d", i+1), errorAttrs(err)...))
+			errAttributes := errorAttrs(err)
+			errGroups = append(errGroups, slog.GroupAttrs(fmt.Sprintf("error_%d", i+1), errAttributes...))
 		}
 		return slog.GroupAttrs("errors", errGroups...)
 	}
