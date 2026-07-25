@@ -8,11 +8,10 @@ import (
 	"time"
 )
 
-
-func requestIdMiddleware(next http.Handler) http.Handler{
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){
+func requestIdMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reqId := r.Header.Get("X-Request-ID")
-		if reqId == ""{
+		if reqId == "" {
 			reqId = rand.Text()
 		}
 		w.Header().Set("X-Request-ID", reqId)
@@ -48,10 +47,10 @@ func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 			}
 
 			if logCtx, ok := r.Context().Value(logContextKey).(*LogContext); ok {
-				if logCtx.Username != ""{
+				if logCtx.Username != "" {
 					logAttrs = append(logAttrs, slog.String("user", logCtx.Username))
 				}
-				if logCtx.Error != nil{
+				if logCtx.Error != nil {
 					logAttrs = append(logAttrs, slog.Any("error", logCtx.Error))
 				}
 			}
@@ -60,4 +59,3 @@ func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 		})
 	}
 }
-

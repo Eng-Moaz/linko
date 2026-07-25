@@ -44,10 +44,10 @@ func (s *server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		r = r.WithContext(context.WithValue(r.Context(), UserContextKey, username))
-		
+
 		val := r.Context().Value(logContextKey)
 		if logCtx, ok := val.(*LogContext); ok {
-    	    	    logCtx.Username = username
+			logCtx.Username = username
 		}
 
 		next.ServeHTTP(w, r)

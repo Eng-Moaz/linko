@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"slices"
 
 	"boot.dev/linko/internal/linkoerr"
 	"github.com/lmittmann/tint"
@@ -32,14 +33,22 @@ const logContextKey contextKey = "log_context"
 
 type LogContext struct {
 	Username string
-	Error error
+	Error    error
 }
 
 func httpError(ctx context.Context, w http.ResponseWriter, status int, err error) {
 	if logCtx, ok := ctx.Value(logContextKey).(*LogContext); ok {
 		logCtx.Error = err
 	}
-	http.Error(w, err.Error(), status)
+
+	badStatusCodes := []int{401, 403, 500}
+	errMsg := err.Error()
+
+	if slices.Contains(badStatusCodes, status) {
+		errMsg = http.StatusText(status)
+	}
+
+	http.Error(w, errMsg, status)
 }
 
 func errorAttrs(err error) []slog.Attr {
@@ -100,7 +109,7 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 		return logger, nil, nil
 	} else {
 		debugHandler := tint.NewTextHandler(os.Stderr, &tint.Options{
-			NoColor: !(isatty.IsCygwinTerminal(os.Stderr.Fd()) || isatty.IsTerminal(os.Stderr.Fd())),
+			NoColor:     !(isatty.IsCygwinTerminal(os.Stderr.Fd()) || isatty.IsTerminal(os.Stderr.Fd())),
 			Level:       slog.LevelDebug,
 			ReplaceAttr: replaceAttr,
 		})
@@ -111,12 +120,12 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 		// bufferedWriter := bufio.NewWriterSize(file, 8192)
 
 		rotateLogger := &lumberjack.Logger{
-			Filename: logFile,
-			MaxSize: 1,
-			MaxAge: 28,
+			Filename:   logFile,
+			MaxSize:    1,
+			MaxAge:     28,
 			MaxBackups: 10,
-			LocalTime: false,
-			Compress: true,
+			LocalTime:  false,
+			Compress:   true,
 		}
 
 		infoHandler := slog.NewJSONHandler(rotateLogger, &slog.HandlerOptions{
