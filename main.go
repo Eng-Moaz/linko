@@ -43,8 +43,10 @@ func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir s
 		slog.String("hostname", hostName),
 	)
 	defer func() {
-		if err := cls(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error in closing the logger function: %v", err)
+		if cls != nil{
+			if err := cls(); err != nil {
+				fmt.Fprintf(os.Stderr, "Error in closing the logger function: %v", err)
+			}
 		}
 	}()
 
