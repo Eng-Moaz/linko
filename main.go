@@ -27,6 +27,11 @@ func main() {
 }
 
 func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir string) int {
+	tracerShut, err := initTracing(context.Background())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error in initializing the tracer: %v", err)
+		return 1
+	}
 	logger, cls, err := initializeLogger()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error in initializing the logger: %v", err)
@@ -43,6 +48,11 @@ func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir s
 		slog.String("hostname", hostName),
 	)
 	defer func() {
+		if tracerShut != nil{
+			if err := tracerShut(context.Background()); err != nil {
+				fmt.Fprintf(os.Stderr, "Error in closing the tracer function: %v", err)
+			}
+		}
 		if cls != nil{
 			if err := cls(); err != nil {
 				fmt.Fprintf(os.Stderr, "Error in closing the logger function: %v", err)
